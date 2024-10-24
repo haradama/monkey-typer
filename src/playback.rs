@@ -2,13 +2,13 @@ use std::error::Error;
 use std::thread::sleep;
 use std::time::Duration;
 
-use crate::data::{open_event_reader, Key, KeyEvent};
+use crate::data::{Key, KeyEvent, KeyEventReader};
 use std::io::{stdout, Write};
 
 /// Function to play a recorded session from a file
 pub fn play_session(session_file: &str) -> Result<(), Box<dyn Error>> {
     // Open the file for playback
-    let mut reader = open_event_reader(session_file)?;
+    let mut reader = KeyEventReader::open(session_file)?;
 
     println!("Playback started.");
 

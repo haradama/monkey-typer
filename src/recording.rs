@@ -1,13 +1,13 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crate::data::{open_event_writer, KeyEvent};
+use crate::data::{KeyEvent, KeyEventWriter};
 use rdev::{listen, ListenError};
 
 /// Function to record a session and save key events to a file
 pub fn record_session(session_file: &str) -> Result<(), ListenError> {
     // Open the file for recording
-    let writer = Arc::new(Mutex::new(open_event_writer(session_file).unwrap()));
+    let writer = Arc::new(Mutex::new(KeyEventWriter::open(session_file).unwrap()));
 
     // Flag to indicate whether recording should continue
     let running = Arc::new(AtomicBool::new(true));

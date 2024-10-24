@@ -10,7 +10,7 @@ fn main() {
     match parse_args() {
         // Handle the 'record' action
         CliAction::Record { session_name } => {
-            let session_file = format!("{}.mt", session_name);
+            let session_file = format!("{}.json", session_name);
             // Attempt to start the recording session and handle errors
             if let Err(err) = recording::record_session(&session_file) {
                 eprintln!("An error occurred during recording: {:?}", err);
@@ -18,7 +18,7 @@ fn main() {
         }
         // Handle the 'play' action
         CliAction::Play { session_name } => {
-            let session_file = format!("{}.mt", session_name);
+            let session_file = format!("{}.json", session_name);
             // Attempt to play the session and handle errors
             if let Err(err) = playback::play_session(&session_file) {
                 eprintln!("An error occurred during playback: {:?}", err);
@@ -44,11 +44,11 @@ fn list_sessions() -> std::io::Result<()> {
 
     let paths = fs::read_dir(".")?;
     println!("Saved sessions:");
-    // Iterate through the directory and print the session files with .mt extension
+    // Iterate through the directory and print the session files with .json extension
     for path in paths {
         let path = path?;
         if let Some(extension) = path.path().extension() {
-            if extension == "mt" {
+            if extension == "json" {
                 if let Some(filename) = path.path().file_stem() {
                     println!("- {}", filename.to_string_lossy());
                 }

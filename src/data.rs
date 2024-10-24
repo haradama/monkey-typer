@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
-use serde_cbor::de::IoRead;
-use serde_cbor::ser::IoWrite;
-use serde_cbor::{de::Deserializer, ser::Serializer};
+use serde_json::Deserializer;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Write};
+use std::io::{BufReader, BufWriter, Write};
 
 /// Enum representing various key types
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
@@ -237,66 +235,44 @@ impl KeyEvent {
 }
 
 /// Writer to serialize and write key events sequentially
-pub struct KeyEventWriter<W: Write> {
-    serializer: Serializer<IoWrite<W>>,
+pub struct KeyEventWriter {
+    writer: BufWriter<File>,
 }
 
-impl<W: Write> KeyEventWriter<W> {
+impl KeyEventWriter {
     /// Create a new KeyEventWriter
-    pub fn new(writer: W) -> Self {
-        let io_write = IoWrite::new(writer);
-        KeyEventWriter {
-            serializer: Serializer::new(io_write),
-        }
+    pub fn open(file_path: &str) -> Result<Self, std::io::Error> {
+        let file = File::create(file_path)?;
+        let writer = BufWriter::new(file);
+        Ok(KeyEventWriter { writer })
     }
 
     /// Serialize and write a key event
-    pub fn write_event(&mut self, event: &KeyEvent) -> serde_cbor::Result<()> {
-        event.serialize(&mut self.serializer)?;
+    pub fn write_event(&mut self, event: &KeyEvent) -> Result<(), Box<dyn std::error::Error>> {
+        serde_json::to_writer(&mut self.writer, event)?;
+        self.writer.write_all(b"\n")?;
         Ok(())
     }
 }
 
 /// Reader to deserialize and read key events sequentially
-pub struct KeyEventReader<R: Read> {
-    deserializer: Deserializer<IoRead<R>>,
+pub struct KeyEventReader {
+    stream:
+        serde_json::StreamDeserializer<'static, serde_json::de::IoRead<BufReader<File>>, KeyEvent>,
 }
 
-impl<R: Read> KeyEventReader<R> {
+impl KeyEventReader {
     /// Create a new KeyEventReader
-    pub fn new(reader: R) -> Self {
-        let io_read = IoRead::new(reader);
-        KeyEventReader {
-            deserializer: Deserializer::new(io_read),
-        }
+    pub fn open(file_path: &str) -> Result<Self, std::io::Error> {
+        let file = File::open(file_path)?;
+        let reader = BufReader::new(file);
+        let deserializer = Deserializer::from_reader(reader);
+        let stream = deserializer.into_iter::<KeyEvent>();
+        Ok(KeyEventReader { stream })
     }
 
     /// Deserialize and read the next key event
-    pub fn read_event(&mut self) -> Option<serde_cbor::Result<KeyEvent>> {
-        let result = KeyEvent::deserialize(&mut self.deserializer);
-        match result {
-            Ok(event) => Some(Ok(event)),
-            Err(e) => {
-                if e.is_eof() {
-                    None // End of file reached
-                } else {
-                    Some(Err(e))
-                }
-            }
-        }
+    pub fn read_event(&mut self) -> Option<Result<KeyEvent, serde_json::Error>> {
+        self.stream.next()
     }
-}
-
-/// Helper function to write key events sequentially to a file
-pub fn open_event_writer(file_path: &str) -> std::io::Result<KeyEventWriter<BufWriter<File>>> {
-    let file = File::create(file_path)?;
-    let writer = BufWriter::new(file);
-    Ok(KeyEventWriter::new(writer))
-}
-
-/// Helper function to read key events sequentially from a file
-pub fn open_event_reader(file_path: &str) -> std::io::Result<KeyEventReader<BufReader<File>>> {
-    let file = File::open(file_path)?;
-    let reader = BufReader::new(file);
-    Ok(KeyEventReader::new(reader))
 }
