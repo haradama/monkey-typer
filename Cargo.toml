@@ -1,0 +1,17 @@
+[package]
+name = "monkey-typer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.20", features = ["derive"] }
+crossterm = "0.28.1"
+ctrlc = "3.4.5"
+rdev = "0.5.3"
+serde = { version = "1.0.213", features = ["derive"] }
+serde_cbor = "0.11.2"
+signal-hook = "0.3.17"
+
+[[bin]]
+name = "monkey-typer"
+path = "src/main.rs"
