@@ -1,8 +1,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crate::data::{KeyEvent, KeyEventWriter};
+use log::{debug, error};
 use rdev::{listen, ListenError};
+
+use crate::data::{KeyEvent, KeyEventWriter};
 
 /// Function to record a session and save key events to a file
 pub fn record_session(session_file: &str) -> Result<(), ListenError> {
@@ -34,12 +36,16 @@ pub fn record_session(session_file: &str) -> Result<(), ListenError> {
             std::process::exit(0);
         }
 
+        debug!("Received event: {:?}", event);
+
         // Convert the event to a KeyEvent and write it to the file
         if let Some(key_event) = KeyEvent::from_rdev_event(&event) {
             let mut writer = writer_clone.lock().unwrap();
             if let Err(err) = writer.write_event(&key_event) {
-                eprintln!("Error occurred while writing key event: {:?}", err);
+                error!("Error occurred while writing key event: {:?}", err);
             }
+        } else {
+            debug!("Event was not converted to KeyEvent");
         }
     })
 }

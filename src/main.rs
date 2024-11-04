@@ -6,6 +6,7 @@ mod recording;
 use cli::{parse_args, CliAction};
 
 fn main() {
+    env_logger::init();
     // Match the command-line arguments to determine the action
     match parse_args() {
         // Handle the 'record' action
