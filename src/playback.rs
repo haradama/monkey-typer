@@ -8,54 +8,45 @@ use rdev::{listen, simulate, EventType, Key as RdevKey, SimulateError};
 
 /// Function to play a recorded session from a file
 pub fn play_session(session_file: &str) -> Result<(), Box<dyn Error>> {
-    // Open the file for playback
     let reader = Arc::new(Mutex::new(KeyEventReader::open(session_file)?));
+    println!("Playback started. Press 'Escape' to quit.");
 
-    println!("Playback started. Press any key to replay events. Press 'Escape' to quit.");
-
-    // Flag to control the listener loop
     let running = Arc::new(AtomicBool::new(true));
-
-    // Set to keep track of currently pressed keys
     let pressed_keys = Arc::new(Mutex::new(HashSet::new()));
+    let simulating_event = Arc::new(AtomicBool::new(false));
 
-    // Clone references for the listener closure
     let reader_clone = Arc::clone(&reader);
     let running_clone = Arc::clone(&running);
     let pressed_keys_clone = Arc::clone(&pressed_keys);
+    let simulating_event_clone = Arc::clone(&simulating_event);
 
-    // Start listening for global key events
     let listen_result = listen(move |event| {
-        if !running_clone.load(Ordering::SeqCst) {
+        if !running_clone.load(Ordering::SeqCst) || simulating_event_clone.load(Ordering::SeqCst) {
             return;
         }
 
         match event.event_type {
             EventType::KeyPress(rdev_key) => {
                 let mut pressed_keys = pressed_keys_clone.lock().unwrap();
-                // Check if this key is already pressed
                 if pressed_keys.contains(&rdev_key) {
-                    // Key is already pressed; ignore to prevent multiple triggers
                     return;
                 }
-                // Mark the key as pressed
                 pressed_keys.insert(rdev_key);
 
-                // Check if the user wants to quit (e.g., pressing 'Escape')
                 if rdev_key == RdevKey::Escape {
                     running_clone.store(false, Ordering::SeqCst);
                     return;
                 }
 
-                // Read the next recorded key event
                 let mut reader = reader_clone.lock().unwrap();
                 match reader.read_event() {
                     Some(Ok(recorded_event)) => {
-                        // Simulate the recorded key event
+                        simulating_event.store(true, Ordering::SeqCst);
                         if let Err(err) = simulate_key_event(&recorded_event) {
                             eprintln!("Error occurred while simulating key event: {:?}", err);
                             running_clone.store(false, Ordering::SeqCst);
                         }
+                        simulating_event.store(false, Ordering::SeqCst);
                     }
                     Some(Err(err)) => {
                         eprintln!("Error occurred while reading key event: {:?}", err);
@@ -69,14 +60,12 @@ pub fn play_session(session_file: &str) -> Result<(), Box<dyn Error>> {
             }
             EventType::KeyRelease(rdev_key) => {
                 let mut pressed_keys = pressed_keys_clone.lock().unwrap();
-                // Remove the key from the pressed keys set
                 pressed_keys.remove(&rdev_key);
             }
             _ => {}
         }
     });
 
-    // Handle any errors from the listener
     if let Err(err) = listen_result {
         eprintln!("Error occurred while listening for events: {:?}", err);
     }
@@ -86,16 +75,11 @@ pub fn play_session(session_file: &str) -> Result<(), Box<dyn Error>> {
 
 /// Simulate the given key event
 fn simulate_key_event(event: &KeyEvent) -> Result<(), SimulateError> {
-    // Map our KeyEvent to rdev::Key
     let rdev_key = key_to_rdev_key(event.key);
-
-    // Simulate the event based on its type
     let event_type = match event.event_type {
         KeyEventType::Press => EventType::KeyPress(rdev_key),
         KeyEventType::Release => EventType::KeyRelease(rdev_key),
     };
-
-    // Simulate the key event
     simulate(&event_type)
 }
 
