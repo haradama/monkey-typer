@@ -1,34 +1,52 @@
 use std::error::Error;
-use std::thread::sleep;
-use std::time::Duration;
+use std::io::{stdout, Write};
+
+use crossterm::event::{read, Event as CEvent, KeyCode as CKeyCode, KeyEvent as CKeyEvent};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use crossterm::{cursor, execute};
 
 use crate::data::{Key, KeyEvent, KeyEventReader};
-use std::io::{stdout, Write};
 
 /// Function to play a recorded session from a file
 pub fn play_session(session_file: &str) -> Result<(), Box<dyn Error>> {
     // Open the file for playback
     let mut reader = KeyEventReader::open(session_file)?;
 
-    println!("Playback started.");
+    println!("Playback started. Press any key to replay events. Press 'q' to quit.");
+
+    // Enable raw mode to capture key presses without Enter
+    enable_raw_mode()?;
 
     // Main loop to read and process key events
-    while let Some(event_result) = reader.read_event() {
-        match event_result {
-            Ok(event) => {
-                // Output the key event to the terminal
-                write_key_event(&event)?;
-                // Add a sleep to control playback speed (adjust as necessary)
-                sleep(Duration::from_millis(20));
-            }
-            Err(err) => {
-                eprintln!("Error occurred while reading key event: {:?}", err);
+    loop {
+        // Wait for user key press
+        let event = read()?;
+        if let CEvent::Key(CKeyEvent { code, .. }) = event {
+            // Check if the user wants to quit
+            if code == CKeyCode::Char('q') {
                 break;
+            }
+
+            // Read the next recorded key event
+            match reader.read_event() {
+                Some(Ok(recorded_event)) => {
+                    // Output the key event to the terminal
+                    write_key_event(&recorded_event)?;
+                }
+                Some(Err(err)) => {
+                    eprintln!("Error occurred while reading key event: {:?}", err);
+                    break;
+                }
+                None => {
+                    println!("\nPlayback finished.");
+                    break;
+                }
             }
         }
     }
 
-    println!("\nPlayback finished.");
+    // Disable raw mode before exiting
+    disable_raw_mode()?;
 
     Ok(())
 }
@@ -52,7 +70,10 @@ fn write_key_event(event: &KeyEvent) -> std::io::Result<()> {
                 write!(stdout, "\t")?;
             }
             Key::Backspace => {
-                write!(stdout, "\x08 \x08")?; // Handle backspace
+                // Handle backspace
+                execute!(stdout, cursor::MoveLeft(1))?;
+                write!(stdout, " ")?;
+                execute!(stdout, cursor::MoveLeft(1))?;
             }
             _ => {}
         }

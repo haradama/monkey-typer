@@ -1,17 +1,15 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use log::{debug, error};
+use crate::data::{KeyEvent, KeyEventWriter};
 use rdev::{listen, ListenError};
 
-use crate::data::{KeyEvent, KeyEventWriter};
-
-/// Function to record a session and save key events to a file
+/// Records a session and saves key events to a file.
 pub fn record_session(session_file: &str) -> Result<(), ListenError> {
-    // Open the file for recording
+    // Open a file for recording
     let writer = Arc::new(Mutex::new(KeyEventWriter::open(session_file).unwrap()));
 
-    // Flag to indicate whether recording should continue
+    // Flag indicating whether to continue recording
     let running = Arc::new(AtomicBool::new(true));
 
     // Set up Ctrl+C signal handling
@@ -25,27 +23,37 @@ pub fn record_session(session_file: &str) -> Result<(), ListenError> {
 
     println!("Recording started. Press Ctrl+C to stop.");
 
-    // Event handler
+    // Run the event listener on a separate thread
     let writer_clone = writer.clone();
     let running_clone = running.clone();
-
-    // Capture key events
-    listen(move |event| {
-        if !running_clone.load(Ordering::SeqCst) {
-            // End recording
-            std::process::exit(0);
-        }
-
-        debug!("Received event: {:?}", event);
-
-        // Convert the event to a KeyEvent and write it to the file
-        if let Some(key_event) = KeyEvent::from_rdev_event(&event) {
-            let mut writer = writer_clone.lock().unwrap();
-            if let Err(err) = writer.write_event(&key_event) {
-                error!("Error occurred while writing key event: {:?}", err);
+    let listener_thread = std::thread::spawn(move || {
+        if let Err(err) = listen(move |event| {
+            if !running_clone.load(Ordering::SeqCst) {
+                // Exit the listener
+                std::process::exit(0);
             }
-        } else {
-            debug!("Event was not converted to KeyEvent");
+
+            // Process the event
+            if let Some(key_event) = KeyEvent::from_rdev_event(&event) {
+                let mut writer = writer_clone.lock().unwrap();
+                if let Err(err) = writer.write_event(&key_event) {
+                    eprintln!("Error occurred while writing key event: {:?}", err);
+                }
+            }
+        }) {
+            eprintln!("Error occurred while listening for events: {:?}", err);
         }
-    })
+    });
+
+    // Wait until the `running` flag becomes `false`
+    while running.load(Ordering::SeqCst) {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+
+    println!("Recording stopped.");
+
+    // Wait for the listener thread to terminate
+    listener_thread.join().unwrap();
+
+    Ok(())
 }

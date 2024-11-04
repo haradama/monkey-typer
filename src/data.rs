@@ -251,6 +251,7 @@ impl KeyEventWriter {
     pub fn write_event(&mut self, event: &KeyEvent) -> Result<(), Box<dyn std::error::Error>> {
         serde_json::to_writer(&mut self.writer, event)?;
         self.writer.write_all(b"\n")?;
+        self.writer.flush()?;
         Ok(())
     }
 }
