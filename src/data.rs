@@ -1,7 +1,16 @@
+use rdev::EventType;
 use serde::{Deserialize, Serialize};
 use serde_json::Deserializer;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Enum representing the type of key event
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
+pub enum KeyEventType {
+    Press,
+    Release,
+}
 
 /// Enum representing various key types
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
@@ -104,133 +113,161 @@ pub enum Key {
 }
 
 /// Structure representing a key event
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct KeyEvent {
+    pub event_type: KeyEventType,
     pub key: Key,
     pub text: Option<String>, // Holds the input text if available
+    pub timestamp: u128,      // Time in milliseconds since UNIX_EPOCH
 }
 
 impl KeyEvent {
-    /// Converts an rdev::Key event to KeyEvent
+    /// Converts an rdev::Event to KeyEvent
     pub fn from_rdev_event(event: &rdev::Event) -> Option<Self> {
-        use rdev::{EventType, Key as RdevKey};
-        if let EventType::KeyPress(key) = event.event_type {
-            let key = match key {
-                RdevKey::Alt => Key::Alt,
-                RdevKey::AltGr => Key::AltGr,
-                RdevKey::Backspace => Key::Backspace,
-                RdevKey::CapsLock => Key::CapsLock,
-                RdevKey::ControlLeft => Key::ControlLeft,
-                RdevKey::ControlRight => Key::ControlRight,
-                RdevKey::Delete => Key::Delete,
-                RdevKey::DownArrow => Key::DownArrow,
-                RdevKey::End => Key::End,
-                RdevKey::Escape => Key::Escape,
-                RdevKey::F1 => Key::F(1),
-                RdevKey::F2 => Key::F(2),
-                RdevKey::F3 => Key::F(3),
-                RdevKey::F4 => Key::F(4),
-                RdevKey::F5 => Key::F(5),
-                RdevKey::F6 => Key::F(6),
-                RdevKey::F7 => Key::F(7),
-                RdevKey::F8 => Key::F(8),
-                RdevKey::F9 => Key::F(9),
-                RdevKey::F10 => Key::F(10),
-                RdevKey::F11 => Key::F(11),
-                RdevKey::F12 => Key::F(12),
-                RdevKey::Home => Key::Home,
-                RdevKey::LeftArrow => Key::LeftArrow,
-                RdevKey::MetaLeft => Key::MetaLeft,
-                RdevKey::MetaRight => Key::MetaRight,
-                RdevKey::PageDown => Key::PageDown,
-                RdevKey::PageUp => Key::PageUp,
-                RdevKey::Return => Key::Return,
-                RdevKey::RightArrow => Key::RightArrow,
-                RdevKey::ShiftLeft => Key::ShiftLeft,
-                RdevKey::ShiftRight => Key::ShiftRight,
-                RdevKey::Space => Key::Space,
-                RdevKey::Tab => Key::Tab,
-                RdevKey::UpArrow => Key::UpArrow,
-                RdevKey::PrintScreen => Key::PrintScreen,
-                RdevKey::ScrollLock => Key::ScrollLock,
-                RdevKey::Pause => Key::Pause,
-                RdevKey::NumLock => Key::NumLock,
-                RdevKey::BackQuote => Key::BackQuote,
-                RdevKey::Num1 => Key::Num1,
-                RdevKey::Num2 => Key::Num2,
-                RdevKey::Num3 => Key::Num3,
-                RdevKey::Num4 => Key::Num4,
-                RdevKey::Num5 => Key::Num5,
-                RdevKey::Num6 => Key::Num6,
-                RdevKey::Num7 => Key::Num7,
-                RdevKey::Num8 => Key::Num8,
-                RdevKey::Num9 => Key::Num9,
-                RdevKey::Num0 => Key::Num0,
-                RdevKey::Minus => Key::Minus,
-                RdevKey::Equal => Key::Equal,
-                RdevKey::KeyQ => Key::KeyQ,
-                RdevKey::KeyW => Key::KeyW,
-                RdevKey::KeyE => Key::KeyE,
-                RdevKey::KeyR => Key::KeyR,
-                RdevKey::KeyT => Key::KeyT,
-                RdevKey::KeyY => Key::KeyY,
-                RdevKey::KeyU => Key::KeyU,
-                RdevKey::KeyI => Key::KeyI,
-                RdevKey::KeyO => Key::KeyO,
-                RdevKey::KeyP => Key::KeyP,
-                RdevKey::LeftBracket => Key::LeftBracket,
-                RdevKey::RightBracket => Key::RightBracket,
-                RdevKey::KeyA => Key::KeyA,
-                RdevKey::KeyS => Key::KeyS,
-                RdevKey::KeyD => Key::KeyD,
-                RdevKey::KeyF => Key::KeyF,
-                RdevKey::KeyG => Key::KeyG,
-                RdevKey::KeyH => Key::KeyH,
-                RdevKey::KeyJ => Key::KeyJ,
-                RdevKey::KeyK => Key::KeyK,
-                RdevKey::KeyL => Key::KeyL,
-                RdevKey::SemiColon => Key::SemiColon,
-                RdevKey::Quote => Key::Quote,
-                RdevKey::BackSlash => Key::BackSlash,
-                RdevKey::IntlBackslash => Key::IntlBackslash,
-                RdevKey::KeyZ => Key::KeyZ,
-                RdevKey::KeyX => Key::KeyX,
-                RdevKey::KeyC => Key::KeyC,
-                RdevKey::KeyV => Key::KeyV,
-                RdevKey::KeyB => Key::KeyB,
-                RdevKey::KeyN => Key::KeyN,
-                RdevKey::KeyM => Key::KeyM,
-                RdevKey::Comma => Key::Comma,
-                RdevKey::Dot => Key::Dot,
-                RdevKey::Slash => Key::Slash,
-                RdevKey::Insert => Key::Insert,
-                RdevKey::KpReturn => Key::KpReturn,
-                RdevKey::KpMinus => Key::KpMinus,
-                RdevKey::KpPlus => Key::KpPlus,
-                RdevKey::KpMultiply => Key::KpMultiply,
-                RdevKey::KpDivide => Key::KpDivide,
-                RdevKey::Kp0 => Key::Kp0,
-                RdevKey::Kp1 => Key::Kp1,
-                RdevKey::Kp2 => Key::Kp2,
-                RdevKey::Kp3 => Key::Kp3,
-                RdevKey::Kp4 => Key::Kp4,
-                RdevKey::Kp5 => Key::Kp5,
-                RdevKey::Kp6 => Key::Kp6,
-                RdevKey::Kp7 => Key::Kp7,
-                RdevKey::Kp8 => Key::Kp8,
-                RdevKey::Kp9 => Key::Kp9,
-                RdevKey::KpDelete => Key::KpDelete,
-                RdevKey::Function => Key::Function,
-                RdevKey::Unknown(code) => Key::Unknown(code),
-            };
+        let event_type = match event.event_type {
+            EventType::KeyPress(_) => KeyEventType::Press,
+            EventType::KeyRelease(_) => KeyEventType::Release,
+            _ => return None, // Ignore other event types
+        };
 
-            // Capture the text associated with the event (if any)
-            let text = event.name.clone();
+        let key = match event.event_type {
+            EventType::KeyPress(key) | EventType::KeyRelease(key) => {
+                // Map rdev::Key to our Key enum
+                rdev_key_to_key(key)
+            }
+            _ => return None,
+        };
 
-            Some(KeyEvent { key, text })
-        } else {
-            None
-        }
+        // Capture the text associated with the event (if any)
+        let text = event.name.clone();
+
+        // Get the timestamp
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_millis();
+
+        Some(KeyEvent {
+            event_type,
+            key,
+            text,
+            timestamp,
+        })
+    }
+}
+
+/// Map rdev::Key to our Key enum
+fn rdev_key_to_key(key: rdev::Key) -> Key {
+    use rdev::Key as RdevKey;
+    use Key::*;
+
+    match key {
+        RdevKey::Alt => Alt,
+        RdevKey::AltGr => AltGr,
+        RdevKey::Backspace => Backspace,
+        RdevKey::CapsLock => CapsLock,
+        RdevKey::ControlLeft => ControlLeft,
+        RdevKey::ControlRight => ControlRight,
+        RdevKey::Delete => Delete,
+        RdevKey::DownArrow => DownArrow,
+        RdevKey::End => End,
+        RdevKey::Escape => Escape,
+        RdevKey::F1 => F(1),
+        RdevKey::F2 => F(2),
+        RdevKey::F3 => F(3),
+        RdevKey::F4 => F(4),
+        RdevKey::F5 => F(5),
+        RdevKey::F6 => F(6),
+        RdevKey::F7 => F(7),
+        RdevKey::F8 => F(8),
+        RdevKey::F9 => F(9),
+        RdevKey::F10 => F(10),
+        RdevKey::F11 => F(11),
+        RdevKey::F12 => F(12),
+        RdevKey::Home => Home,
+        RdevKey::LeftArrow => LeftArrow,
+        RdevKey::MetaLeft => MetaLeft,
+        RdevKey::MetaRight => MetaRight,
+        RdevKey::PageDown => PageDown,
+        RdevKey::PageUp => PageUp,
+        RdevKey::Return => Return,
+        RdevKey::RightArrow => RightArrow,
+        RdevKey::ShiftLeft => ShiftLeft,
+        RdevKey::ShiftRight => ShiftRight,
+        RdevKey::Space => Space,
+        RdevKey::Tab => Tab,
+        RdevKey::UpArrow => UpArrow,
+        RdevKey::PrintScreen => PrintScreen,
+        RdevKey::ScrollLock => ScrollLock,
+        RdevKey::Pause => Pause,
+        RdevKey::NumLock => NumLock,
+        RdevKey::BackQuote => BackQuote,
+        RdevKey::Num1 => Num1,
+        RdevKey::Num2 => Num2,
+        RdevKey::Num3 => Num3,
+        RdevKey::Num4 => Num4,
+        RdevKey::Num5 => Num5,
+        RdevKey::Num6 => Num6,
+        RdevKey::Num7 => Num7,
+        RdevKey::Num8 => Num8,
+        RdevKey::Num9 => Num9,
+        RdevKey::Num0 => Num0,
+        RdevKey::Minus => Minus,
+        RdevKey::Equal => Equal,
+        RdevKey::KeyQ => KeyQ,
+        RdevKey::KeyW => KeyW,
+        RdevKey::KeyE => KeyE,
+        RdevKey::KeyR => KeyR,
+        RdevKey::KeyT => KeyT,
+        RdevKey::KeyY => KeyY,
+        RdevKey::KeyU => KeyU,
+        RdevKey::KeyI => KeyI,
+        RdevKey::KeyO => KeyO,
+        RdevKey::KeyP => KeyP,
+        RdevKey::LeftBracket => LeftBracket,
+        RdevKey::RightBracket => RightBracket,
+        RdevKey::KeyA => KeyA,
+        RdevKey::KeyS => KeyS,
+        RdevKey::KeyD => KeyD,
+        RdevKey::KeyF => KeyF,
+        RdevKey::KeyG => KeyG,
+        RdevKey::KeyH => KeyH,
+        RdevKey::KeyJ => KeyJ,
+        RdevKey::KeyK => KeyK,
+        RdevKey::KeyL => KeyL,
+        RdevKey::SemiColon => SemiColon,
+        RdevKey::Quote => Quote,
+        RdevKey::BackSlash => BackSlash,
+        RdevKey::IntlBackslash => IntlBackslash,
+        RdevKey::KeyZ => KeyZ,
+        RdevKey::KeyX => KeyX,
+        RdevKey::KeyC => KeyC,
+        RdevKey::KeyV => KeyV,
+        RdevKey::KeyB => KeyB,
+        RdevKey::KeyN => KeyN,
+        RdevKey::KeyM => KeyM,
+        RdevKey::Comma => Comma,
+        RdevKey::Dot => Dot,
+        RdevKey::Slash => Slash,
+        RdevKey::Insert => Insert,
+        RdevKey::KpReturn => KpReturn,
+        RdevKey::KpMinus => KpMinus,
+        RdevKey::KpPlus => KpPlus,
+        RdevKey::KpMultiply => KpMultiply,
+        RdevKey::KpDivide => KpDivide,
+        RdevKey::Kp0 => Kp0,
+        RdevKey::Kp1 => Kp1,
+        RdevKey::Kp2 => Kp2,
+        RdevKey::Kp3 => Kp3,
+        RdevKey::Kp4 => Kp4,
+        RdevKey::Kp5 => Kp5,
+        RdevKey::Kp6 => Kp6,
+        RdevKey::Kp7 => Kp7,
+        RdevKey::Kp8 => Kp8,
+        RdevKey::Kp9 => Kp9,
+        RdevKey::KpDelete => KpDelete,
+        RdevKey::Function => Function,
+        RdevKey::Unknown(code) => Unknown(code),
     }
 }
 

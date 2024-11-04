@@ -30,7 +30,7 @@ pub fn record_session(session_file: &str) -> Result<(), ListenError> {
         if let Err(err) = listen(move |event| {
             if !running_clone.load(Ordering::SeqCst) {
                 // Exit the listener
-                std::process::exit(0);
+                return;
             }
 
             // Process the event
