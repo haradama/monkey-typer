@@ -1,95 +1,50 @@
-mod cli;
-mod data;
-mod playback;
-mod recording;
+mod prelude;
+mod errors;
+mod logging;
+mod config;
 
-use cli::{parse_args, CliAction};
+use crate::prelude::*;
+use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
-fn main() {
-    env_logger::init();
-    // Match the command-line arguments to determine the action
-    match parse_args() {
-        // Handle the 'record' action
-        CliAction::Record { session_name } => {
-            let session_file = format!("{}.json", session_name);
-            // Attempt to start the recording session and handle errors
-            if let Err(err) = recording::record_session(&session_file) {
-                eprintln!("An error occurred during recording: {:?}", err);
-            }
-        }
-        // Handle the 'play' action
-        CliAction::Play { session_name } => {
-            let session_file = format!("{}.json", session_name);
-            // Attempt to play the session and handle errors
-            if let Err(err) = playback::play_session(&session_file) {
-                eprintln!("An error occurred during playback: {:?}", err);
-            }
-        }
-        // Handle the 'list' action
-        CliAction::ListSessions => {
-            // Attempt to list saved sessions and handle errors
-            if let Err(err) = list_sessions() {
-                eprintln!("An error occurred while listing sessions: {:?}", err);
-            }
-        }
-        // Display the help message if no valid action is provided
-        CliAction::ShowHelp => {
-            print_help();
-        }
-    }
+#[derive(Parser, Debug)]
+#[command(name = "monkey-typer", about = "Live coding air-typing performer", version)]
+struct Cli {
+    #[arg(short = 'c', long = "config")]
+    config: Option<PathBuf>,
+
+    #[arg(long = "log-level")]
+    log_level: Option<String>,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
 }
 
-// Function to list saved sessions
-fn list_sessions() -> std::io::Result<()> {
-    use std::fs;
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Doctor,
+}
 
-    let paths = fs::read_dir(".")?;
-    println!("Saved sessions:");
-    // Iterate through the directory and print the session files with .json extension
-    for path in paths {
-        let path = path?;
-        if let Some(extension) = path.path().extension() {
-            if extension == "json" {
-                if let Some(filename) = path.path().file_stem() {
-                    println!("- {}", filename.to_string_lossy());
-                }
-            }
+fn main() -> Result<()> {
+    let cli = Cli::parse();
+
+    let cfg = config::AppConfig::load_from(cli.config.as_deref())?;
+
+    if let Some(level) = cli.log_level.as_ref().or(cfg.log_level.as_ref()) {
+        std::env::set_var("RUST_LOG", level);
+    }
+
+    logging::init();
+
+    info!("monkey-typer starting up...");
+    debug!("cli = {:?}", &cli);
+
+    match cli.command.unwrap_or(Commands::Doctor) {
+        Commands::Doctor => {
+            info!("OK: CLI/Logging/Config is started.");
+            println!("monkey-typer is ready. Try: `RUST_LOG=debug monkey-typer --help`");
         }
     }
+
     Ok(())
-}
-
-// Function to print the help message
-fn print_help() {
-    use clap::Command;
-
-    let mut app = Command::new("monkey-typer")
-        .version("1.0")
-        .author("Your Name <youremail@example.com>")
-        .about("CLI tool to support live coding style performances")
-        // Define the 'record' subcommand
-        .subcommand(
-            Command::new("record")
-                .about("Starts a new recording session")
-                .arg(
-                    clap::Arg::new("SESSION")
-                        .help("Specify the session name")
-                        .required(true)
-                        .index(1),
-                ),
-        )
-        // Define the 'play' subcommand
-        .subcommand(
-            Command::new("play").about("Plays a recorded session").arg(
-                clap::Arg::new("SESSION")
-                    .help("Specify the session name to play")
-                    .required(true)
-                    .index(1),
-            ),
-        )
-        // Define the 'list' subcommand
-        .subcommand(Command::new("list").about("Displays a list of saved sessions"));
-
-    app.print_help().unwrap();
-    println!();
 }
