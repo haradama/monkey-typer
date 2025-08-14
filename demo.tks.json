@@ -1,0 +1,21 @@
+{
+  "version": "1",
+  "tracks": [
+    {
+      "id": "main",
+      "sequence": [
+        {"t":0,"type":"Insert","text":"fn main() {\n"},
+        {"t":1,"type":"Insert","text":"    println!(\"hi\");"},
+        {"t":2,"type":"Delete"},
+        {"t":3,"type":"Delete"},
+        {"t":4,"type":"Delete"},
+        {"t":5,"type":"Delete"},
+        {"t":6,"type":"Delete"},
+        {"t":7,"type":"Insert","text":"hello\");\n"},
+        {"t":8,"type":"Insert","text":"}\n"},
+        {"t":9,"type":"Insert","text":"\n"},
+        {"t":10,"type":"Marker","name":"run"}
+      ]
+    }
+  ]
+}
